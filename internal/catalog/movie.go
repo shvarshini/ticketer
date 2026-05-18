@@ -8,7 +8,7 @@ type Movie struct {
 	ID          string    `json:"id"`
 	Title       string    `json:"title"`
 	Description string    `json:"description"`
-	Duration    int       `json:"duration"` // in minutes
+	Duration    int       `json:"duration"` 
 	ReleaseDate time.Time `json:"release_date"`
 	Genre       string    `json:"genre"`
 	BasePrice   float64   `json:"base_price"`
@@ -54,7 +54,6 @@ type ShowRepository interface {
 type ShowSeatRepository interface {
 	GetByID(id string) (*ShowSeat, error)
 	Save(showSeat *ShowSeat) error
-	UpdateStatus(id string, status ShowSeatStatus) error
 	UpdateStatuses(ids []string, status ShowSeatStatus) error
 	GetAvailableSeats(showID string) ( []ShowSeat, error)
 }

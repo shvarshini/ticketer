@@ -59,4 +59,5 @@ func (r *ShowRepository) Save(show *catalog.Show) error {
 	return nil
 }
 
+// couldn't implement GetByTheater because cant get Theater from ScreenID.
 

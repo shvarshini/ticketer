@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/http"
 
+	"ticketer/internal/availability"
 	"ticketer/internal/booking"
 	bookingmemory "ticketer/internal/booking/memory"
 	"ticketer/internal/catalog"
@@ -40,6 +41,7 @@ var Module = fx.Module("app",
 
 	// ── Domain Services ─────────────────────────────────────────────
 	fx.Provide(
+		fx.Annotate(availability.New, fx.As(new(availability.Service))),
 		fx.Annotate(pricing.New, fx.As(new(pricing.Service))),
 		fx.Annotate(booking.NewBookingService, fx.As(new(booking.Service))),
 	),
@@ -56,6 +58,7 @@ var Module = fx.Module("app",
 	// ── HTTP Server ─────────────────────────────────────────────────
 	fx.Provide(NewHTTPServer),
 	fx.Invoke(startServer),
+	fx.Invoke(seedData),
 )
 
 // ── Server helpers ──────────────────────────────────────────────────

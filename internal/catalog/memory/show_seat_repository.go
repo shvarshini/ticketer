@@ -52,17 +52,6 @@ func (r *ShowSeatRepository) Save(showSeat *catalog.ShowSeat) error {
 	return nil
 }
 
-func (r *ShowSeatRepository) UpdateStatus(id string, status catalog.ShowSeatStatus) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	seat, ok := r.showSeats[id]
-	if !ok {
-		return errors.New("seat not found")
-	}
-	seat.Status = status
-	return nil
-}
 
 func (r *ShowSeatRepository) UpdateStatuses(ids []string, status catalog.ShowSeatStatus) error {
 	r.mu.Lock()

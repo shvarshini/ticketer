@@ -1,11 +1,22 @@
 package pricing
 
-import "ticketer/internal/catalog"
+import (
+	"fmt"
+	"ticketer/internal/catalog"
+	"time"
+)
 
-type PricingService struct{}
+type PricingService struct {
+	theaterRepo catalog.TheaterRepository
+}
 
-func New() *PricingService {
-	return &PricingService{}
+func New(theaterRepo catalog.TheaterRepository) *PricingService {
+	if theaterRepo == nil {
+		panic("Constructor parameter is nil for New PricingService")
+	}
+	return &PricingService{
+		theaterRepo: theaterRepo,
+	}
 }
 
 type Service interface {
@@ -13,5 +24,42 @@ type Service interface {
 }
 
 func (s *PricingService) CalculatePrice(movie catalog.Movie, show catalog.Show, seats []catalog.ShowSeat) (float64, error) {
-	return movie.BasePrice * float64(len(seats)), nil	
+	totalPrice := 0.0
+
+	// 1. Time Surcharge
+	// Assuming 20% surcharge for weekend or evening (after 6 PM)
+	timeSurchargeMultiplier := 1.0
+	if show.StartTime.Weekday() == time.Saturday || show.StartTime.Weekday() == time.Sunday || show.StartTime.Hour() >= 18 {
+		timeSurchargeMultiplier = 1.2
+	}
+
+	// Optimization: Fetch screen once
+	screen, err := s.theaterRepo.GetScreen(show.ScreenID)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get screen: %w", err)
+	}
+
+	// Map seats for quick lookup
+	seatMap := make(map[string]catalog.Seat)
+	for _, seat := range screen.Seats {
+		seatMap[seat.ID] = seat
+	}
+
+	for _, showSeat := range seats {
+		seatPrice := movie.BasePrice
+
+		actualSeat, found := seatMap[showSeat.SeatID]
+		if found {
+			switch actualSeat.Type {
+			case catalog.SeatTypePremium:
+				seatPrice *= 1.5
+			case catalog.SeatTypeVIP:
+				seatPrice *= 2.0
+			}
+		}
+
+		totalPrice += seatPrice * timeSurchargeMultiplier
+	}
+
+	return totalPrice, nil
 }
