@@ -50,3 +50,25 @@ func (r *MovieRepository) Save(movie *catalog.Movie) error {
 	r.movies[movie.ID] = movie
 	return nil
 }
+
+func (r *MovieRepository) Update(movie *catalog.Movie) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if _, ok := r.movies[movie.ID]; !ok {
+		return errors.New("movie not found")
+	}
+	r.movies[movie.ID] = movie
+	return nil
+}
+
+func (r *MovieRepository) Delete(id string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if _, ok := r.movies[id]; !ok {
+		return nil
+	}
+	delete(r.movies, id)
+	return nil
+}

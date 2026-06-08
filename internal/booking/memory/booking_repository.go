@@ -41,7 +41,7 @@ func (r *BookingRepository) UpdateStatus(id string, status booking.BookingStatus
 		return errors.New("booking not found")
 	}
 	b.Status = status
-	b.UpdatedTimestamp = time.Now()
+	b.UpdatedAt = time.Now()
 	return nil
 }
 

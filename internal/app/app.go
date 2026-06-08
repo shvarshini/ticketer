@@ -40,6 +40,9 @@ var Module = fx.Module("app",
 		fx.Annotate(availability.New, fx.As(new(availability.Service))),
 		fx.Annotate(pricing.New, fx.As(new(pricing.Service))),
 		fx.Annotate(booking.NewBookingService, fx.As(new(booking.Service))),
+		catalog.NewTheaterService,
+		catalog.NewMovieService,
+		catalog.NewShowService,
 	),
 
 	//  HTTP Handlers 
@@ -49,12 +52,16 @@ var Module = fx.Module("app",
 			fx.As(new(booking.RouteRegistrar)),
 			fx.ResultTags(`group:"routes"`),
 		),
+		fx.Annotate(
+			catalog.NewHandler,
+			fx.As(new(booking.RouteRegistrar)),
+			fx.ResultTags(`group:"routes"`),
+		),
 	),
 
 	//  HTTP Server 
 	fx.Provide(NewHTTPServer),
 	fx.Invoke(startServer),
-	fx.Invoke(seedData),
 )
 
 type ServerParams struct {

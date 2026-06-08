@@ -40,10 +40,6 @@ func (r *ShowRepository) GetByMovie(movieID string) ([]catalog.Show, error) {
 	}
 	return result, nil
 }
-// couldn't implement GetByTheater because cant get Theater from ScreenID.
-func (r *ShowRepository) GetByTheater(theaterID string) ([]catalog.Show, error) {
-	return nil, errors.New("not implemented: requires screen-to-theater mapping")
-}
 
 func (r *ShowRepository) Save(show *catalog.Show) error {
 	r.mu.Lock()
@@ -56,5 +52,37 @@ func (r *ShowRepository) Save(show *catalog.Show) error {
 	return nil
 }
 
+func (r *ShowRepository) Update(show *catalog.Show) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 
+	if _, ok := r.shows[show.ID]; !ok {
+		return errors.New("show not found")
+	}
+	r.shows[show.ID] = show
+	return nil
+}
 
+func (r *ShowRepository) Delete(id string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if _, ok := r.shows[id]; !ok {
+		return nil
+	}
+	delete(r.shows, id)
+	return nil
+}
+
+func (r *ShowRepository) GetByScreen(screenID string) ([]catalog.Show, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	var result []catalog.Show
+	for _, s := range r.shows {
+		if s.ScreenID == screenID {
+			result = append(result, *s)
+		}
+	}
+	return result, nil
+}

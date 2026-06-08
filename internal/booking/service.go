@@ -3,10 +3,11 @@ package booking
 import (
 	"fmt"
 	"sort"
-	"time"
 	"ticketer/internal/availability"
 	"ticketer/internal/catalog"
+	"ticketer/internal/core/lock"
 	"ticketer/internal/pricing"
+	"time"
 	"github.com/google/uuid"
 )
 
@@ -17,6 +18,7 @@ type BookingService struct {
 	showRepo            catalog.ShowRepository
 	showSeatRepo        catalog.ShowSeatRepository
 	pricingService      pricing.Service
+	lockService         lock.LockService
 }
 
 func NewBookingService(
@@ -26,9 +28,10 @@ func NewBookingService(
 	showRepo catalog.ShowRepository,
 	showSeatRepo catalog.ShowSeatRepository,
 	pricingService pricing.Service,
+	lockService lock.LockService,
 ) *BookingService {
 
-	if availabilityService == nil || bookingRepo == nil || movieRepo == nil || showRepo == nil || showSeatRepo == nil || pricingService == nil {
+	if availabilityService == nil || bookingRepo == nil || movieRepo == nil || showRepo == nil || showSeatRepo == nil || pricingService == nil || lockService == nil {
 		panic("Constructor parameter is nil for NewBookingService")
 	}
 
@@ -39,53 +42,74 @@ func NewBookingService(
 		showRepo:            showRepo,
 		showSeatRepo:        showSeatRepo,
 		pricingService:      pricingService,
+		lockService:         lockService,
 	}
 }
 
 type Service interface {
-	InitiateBooking(userID string, showID string, seatIDs []string) (*Booking, error)
+	InitiateBooking(userID string, showID string, showSeatIDs []string) (*Booking, error)
 	ConfirmBooking(bookingID string) error
 	CancelBooking(bookingID string) error
 	RevertBooking(bookingID string) error
 }
 
-func (s *BookingService) InitiateBooking(userID string, showID string, seatIDs []string) (*Booking, error) {
-	sort.Strings(seatIDs)
+func (s *BookingService) InitiateBooking(userID string, showID string, showSeatIDs []string) (*Booking, error) {
+	sort.Strings(showSeatIDs)
 
+	var successfullyLockedShowSeats []string
+	var bookingSuccessful bool 
+
+	defer func ()  {
+		if !bookingSuccessful && len(successfullyLockedShowSeats) > 0 {
+			s.ReleaseLockedShowSeats(successfullyLockedShowSeats)
+		}
+	}()
 	show, err := s.showRepo.GetByID(showID)
 	if err != nil {
-		return nil, fmt.Errorf("show not found: %v", err)
+		return nil, fmt.Errorf("show not found: %w", err)
 	}
 
 	movie, err := s.movieRepo.GetByID(show.MovieID)
 	if err != nil {
-		return nil, fmt.Errorf("movie not found: %v", err)
+		return nil, fmt.Errorf("movie not found: %w", err)
 	}
 
-	// acquire lock on seats using availability service
-	err = s.availabilityService.LockSeats(seatIDs)
+	showSeats, err := s.showSeatRepo.GetByShow(showID)
+
 	if err != nil {
-		return nil, fmt.Errorf("failed to lock seats: %w", err)
-	}
-	
-	err = s.availabilityService.UpdateStatuses(seatIDs,catalog.ShowSeatStatusLocked)
-	if err != nil {
-		return nil, fmt.Errorf("failed to lock seats: %w", err)
+		return nil, err
 	}
 
-	seats := []catalog.ShowSeat{}
-	for _, seatID := range seatIDs {
-		seat, err := s.showSeatRepo.GetByID(seatID)
+	showSeatsMap := make(map[string]catalog.ShowSeat)
+	for _, showSeat := range showSeats {
+		showSeatsMap[showSeat.ID] = showSeat
+	}
+
+	for _, showSeatID := range showSeatIDs {
+		err := s.lockService.TryLock(showSeatID, userID)
 		if err != nil {
-			_ = s.availabilityService.ReleaseSeats(seatIDs)
-			return nil, err
+			return nil, fmt.Errorf("failed to lock showSeat %s: %w", showSeatID, err)
 		}
-		seats = append(seats, *seat)
+		successfullyLockedShowSeats = append(successfullyLockedShowSeats, showSeatID)
 	}
 
-	price, err := s.pricingService.CalculatePrice(*movie, *show, seats)
+	for _, showSeatID := range showSeatIDs {
+		seat, ok := showSeatsMap[showSeatID]
+		if !ok {
+			return nil, fmt.Errorf("seat %s not found", showSeatID)
+		}
+		if seat.Status != catalog.ShowSeatStatusAvailable {
+			return nil, fmt.Errorf("seat %s is not available", showSeatID)
+		}
+	}
+
+	err = s.showSeatRepo.UpdateStatuses(showSeatIDs, catalog.ShowSeatStatusLocked)
 	if err != nil {
-		_ = s.availabilityService.ReleaseSeats(seatIDs)
+		return nil, fmt.Errorf("failed to update showSeat statuses: %w", err)
+	}
+
+	price, err := s.pricingService.CalculatePrice(*movie, *show, showSeats)
+	if err != nil {
 		return nil, err
 	}
 
@@ -93,44 +117,42 @@ func (s *BookingService) InitiateBooking(userID string, showID string, seatIDs [
 		ID:               uuid.New().String(),
 		UserID:           userID,
 		ShowID:           showID,
-		SeatIDs:          seatIDs,
+		SeatIDs:          showSeatIDs,
 		Price:            price,
 		Status:           BookingStatusPending,
-		CreatedTimestamp: time.Now(),
-		UpdatedTimestamp: time.Now(),
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
 	}
 
 	booking, err = s.bookingRepo.Save(booking)
 	if err != nil {
-		_ = s.availabilityService.ReleaseSeats( seatIDs)
-		return nil, fmt.Errorf("booking failed: %v", err)
+		return nil, fmt.Errorf("booking failed: %w", err)
 	}
-
+	bookingSuccessful = true
 	return booking, nil
 }
 
 func (s *BookingService) ConfirmBooking(bookingID string) error {
+
 	booking, err := s.bookingRepo.GetByID(bookingID)
 	if err != nil {
-		return fmt.Errorf("booking not found: %v", err)
+		return fmt.Errorf("booking not found: %w", err)
 	}
 
 	if booking.Status != BookingStatusPending {
 		return fmt.Errorf("booking is not in pending state")
 	}
 
-	// Update seat statuses to booked using availability service
-	err = s.availabilityService.BookSeats(booking.SeatIDs)
+	err = s.showSeatRepo.UpdateStatuses(booking.SeatIDs,catalog.ShowSeatStatusBooked)
 	if err != nil {
 		return err
 	}
 
-	// Update booking status to confirmed
 	err = s.bookingRepo.UpdateStatus(bookingID, BookingStatusConfirmed)
 	if err != nil {
 		return err
 	}
-
+	s.ReleaseLockedShowSeats(booking.SeatIDs)
 	return nil
 }
 
@@ -144,13 +166,32 @@ func (s *BookingService) RevertBooking(bookingID string) error {
 		return fmt.Errorf("booking is not in pending state cannot be reverted")
 	}
 
-	// Release locked seats
-	err = s.availabilityService.ReleaseSeats(booking.SeatIDs)
+	err = s.showSeatRepo.UpdateStatuses(booking.SeatIDs,catalog.ShowSeatStatusAvailable)
+	if err != nil {
+		return err
+	}
+	err = s.bookingRepo.UpdateStatus(bookingID, BookingStatusCancelled)
+	if err != nil {
+		return err
+	}
+	s.ReleaseLockedShowSeats(booking.SeatIDs)
+	return nil
+}
+
+func (s *BookingService) CancelBooking(bookingID string) error {
+	booking, err := s.bookingRepo.GetByID(bookingID)
+	if err != nil {
+		return fmt.Errorf("booking not found: %w", err)
+	}
+	if booking.Status != BookingStatusConfirmed {
+		return fmt.Errorf("booking is not in confirmed state")
+	}
+
+	err = s.showSeatRepo.UpdateStatuses(booking.SeatIDs,catalog.ShowSeatStatusAvailable)
 	if err != nil {
 		return err
 	}
 
-	// Update booking status to cancelled
 	err = s.bookingRepo.UpdateStatus(bookingID, BookingStatusCancelled)
 	if err != nil {
 		return err
@@ -159,26 +200,8 @@ func (s *BookingService) RevertBooking(bookingID string) error {
 	return nil
 }
 
-func (s *BookingService) CancelBooking(bookingID string) error {
-	booking, err := s.bookingRepo.GetByID(bookingID)
-	if err != nil {
-		return fmt.Errorf("booking not found: %v", err)
+func (s *BookingService) ReleaseLockedShowSeats(showSeatIDs []string) {
+	for _, showSeatID := range showSeatIDs {
+		s.lockService.Unlock(showSeatID)
 	}
-	if booking.Status != BookingStatusConfirmed {
-		return fmt.Errorf("booking is not in confirmed state")
-	}
-
-	// Release seats back to availability pool
-	err = s.availabilityService.ReleaseSeats(booking.SeatIDs)
-	if err != nil {
-		return err
-	}
-
-	// Update booking status to cancelled
-	err = s.bookingRepo.UpdateStatus(bookingID, BookingStatusCancelled)
-	if err != nil {
-		return err
-	}
-
-	return nil
 }

@@ -28,6 +28,19 @@ func (r *ShowSeatRepository) GetByID(id string) (*catalog.ShowSeat, error) {
 	return seat, nil
 }
 
+func (r *ShowSeatRepository) GetByShow(showID string) ([]catalog.ShowSeat, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	var result []catalog.ShowSeat
+	for _, seat := range r.showSeats {
+		if seat.ShowID == showID {
+			result = append(result, *seat)
+		}
+	}
+	return result, nil
+}
+
 func (r *ShowSeatRepository) GetAvailableSeats(showID string) ([]catalog.ShowSeat, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -51,7 +64,6 @@ func (r *ShowSeatRepository) Save(showSeat *catalog.ShowSeat) error {
 	r.showSeats[showSeat.ID] = showSeat
 	return nil
 }
-
 
 func (r *ShowSeatRepository) UpdateStatuses(ids []string, status catalog.ShowSeatStatus) error {
 	r.mu.Lock()

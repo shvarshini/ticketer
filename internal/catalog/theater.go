@@ -2,6 +2,7 @@ package catalog
 
 type Theater struct {
 	ID       string   `json:"id"`
+	AdminID  string   `json:"admin_id"`
 	Name     string   `json:"name"`
 	Location string   `json:"location"`
 	Screens  []Screen `json:"screens"`
@@ -32,9 +33,17 @@ type Seat struct {
 
 type TheaterRepository interface {
 	GetByID(id string) (*Theater, error)
+	GetByAdminID(adminID string) ([]Theater, error)
 	GetScreen(screenID string) (*Screen, error)
+	GetSeats(screenID string) ([]Seat, error)
 	List() ([]Theater, error)
 	Save(theater *Theater) error
+	Update(theater *Theater) error
+	Delete(id string) error
 	AddScreenToTheater(theaterID string, screen *Screen) error
+	UpdateScreen(screen *Screen) error
+	DeleteScreen(theaterID, screenID string) error
 	AddSeatToScreen(screenID string, seat *Seat) (*Screen, error)
+	UpdateSeat(seat *Seat) error
+	DeleteSeat(screenID, seatID string) error
 }
