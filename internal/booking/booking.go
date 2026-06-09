@@ -8,6 +8,7 @@ const (
 	BookingStatusPending   BookingStatus = "PENDING"
 	BookingStatusConfirmed BookingStatus = "CONFIRMED"
 	BookingStatusCancelled BookingStatus = "CANCELLED"
+	BookingStatusReverted  BookingStatus = "REVERTED"
 )
 
 type Booking struct {

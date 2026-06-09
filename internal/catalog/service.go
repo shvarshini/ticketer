@@ -234,13 +234,6 @@ func (s *ShowService) GetShow(id string) (*Show, error) {
 	return s.showRepo.GetByID(id)
 }
 
-func (s *ShowService) GetShowSeats(showID string) ([]ShowSeat, error) {
-	if _, err := s.showRepo.GetByID(showID); err != nil {
-		return nil, errors.New("show not found")
-	}
-	return s.showSeatRepo.GetByShow(showID)
-}
-
 func (s *ShowService) GetShowsByMovie(movieID string) ([]Show, error) {
 	return s.showRepo.GetByMovie(movieID)
 }

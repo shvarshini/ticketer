@@ -92,6 +92,11 @@ var Module = fx.Module("app",
 			fx.As(new(booking.RouteRegistrar)),
 			fx.ResultTags(`group:"routes"`),
 		),
+		fx.Annotate(
+			availability.NewHandler,
+			fx.As(new(booking.RouteRegistrar)),
+			fx.ResultTags(`group:"routes"`),
+		),
 	),
 
 	// HTTP Server
