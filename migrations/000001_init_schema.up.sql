@@ -1,0 +1,61 @@
+CREATE TABLE IF NOT EXISTS movies (
+    id UUID PRIMARY KEY,
+    title VARCHAR(255) NOT NULL,
+    description TEXT,
+    duration INT NOT NULL,
+    release_date TIMESTAMP NOT NULL,
+    genre VARCHAR(100),
+    base_price DECIMAL(10, 2) NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS theaters (
+    id UUID PRIMARY KEY,
+    admin_id VARCHAR(255) NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    location VARCHAR(255) NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS screens (
+    id UUID PRIMARY KEY,
+    theater_id UUID NOT NULL REFERENCES theaters(id) ON DELETE CASCADE,
+    name VARCHAR(255) NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS seats (
+    id UUID PRIMARY KEY,
+    screen_id UUID NOT NULL REFERENCES screens(id) ON DELETE CASCADE,
+    row VARCHAR(10) NOT NULL,
+    number INT NOT NULL,
+    type VARCHAR(50) NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS shows (
+    id UUID PRIMARY KEY,
+    movie_id UUID NOT NULL REFERENCES movies(id) ON DELETE CASCADE,
+    screen_id UUID NOT NULL REFERENCES screens(id) ON DELETE CASCADE,
+    start_time TIMESTAMP NOT NULL,
+    end_time TIMESTAMP NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS show_seats (
+    id UUID PRIMARY KEY,
+    show_id UUID NOT NULL REFERENCES shows(id) ON DELETE CASCADE,
+    seat_id UUID NOT NULL REFERENCES seats(id) ON DELETE CASCADE,
+    status VARCHAR(50) NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS bookings (
+    id UUID PRIMARY KEY,
+    user_id VARCHAR(255) NOT NULL,
+    show_id UUID NOT NULL REFERENCES shows(id) ON DELETE CASCADE,
+    price DECIMAL(10, 2) NOT NULL,
+    status VARCHAR(50) NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS booking_seats (
+    booking_id UUID NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
+    seat_id UUID NOT NULL REFERENCES show_seats(id) ON DELETE CASCADE,
+    PRIMARY KEY (booking_id, seat_id)
+);
