@@ -2,21 +2,18 @@ package availability
 
 import (
 	"ticketer/internal/catalog"
-	"ticketer/internal/core/lock"
 )
 
 type AvailabilityService struct {
 	showSeatRepo catalog.ShowSeatRepository
-	lockService  lock.LockService
 }
 
-func New(showSeatRepo catalog.ShowSeatRepository, lockService lock.LockService) *AvailabilityService {
-	if showSeatRepo == nil || lockService == nil {
+func New(showSeatRepo catalog.ShowSeatRepository) *AvailabilityService {
+	if showSeatRepo == nil {
 		panic("Constructor parameter is nil for New AvailabilityService")
 	}
 	return &AvailabilityService{
 		showSeatRepo: showSeatRepo,
-		lockService:  lockService,
 	}
 }
 

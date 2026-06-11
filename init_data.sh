@@ -3,8 +3,9 @@
 # Exit on error
 set -e
 
-# API Base URL
-BASE_URL="http://localhost:8080/api"
+# API Base URL (defaults to localhost if no argument is provided)
+BASE_URL=${1:-"http://localhost:8080/api"}
+echo "Using BASE_URL: $BASE_URL"
 
 # Helper function to extract ID from JSON using Python
 extract_id() {

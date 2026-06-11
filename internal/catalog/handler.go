@@ -49,7 +49,6 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	// Shows
 	mux.HandleFunc("POST /api/admin/shows", h.addShow)
 	mux.HandleFunc("GET /api/shows/{id}", h.getShow)
-	mux.HandleFunc("GET /api/shows/{id}/seats", h.getShowSeats)
 	mux.HandleFunc("GET /api/movies/{id}/shows", h.getShowsByMovie)
 	mux.HandleFunc("GET /api/theaters/{id}/shows", h.getShowsByTheater)
 	mux.HandleFunc("PUT /api/admin/shows/{id}", h.updateShow)
@@ -365,12 +364,4 @@ func (h *Handler) deleteShow(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (h *Handler) getShowSeats(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
-	seats, err := h.showService.GetShowSeats(id)
-	if err != nil {
-		respondError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	respondJSON(w, http.StatusOK, seats)
-}
+

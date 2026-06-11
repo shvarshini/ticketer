@@ -3,7 +3,6 @@ package booking
 import (
 	"fmt"
 	"sort"
-	"ticketer/internal/availability"
 	"ticketer/internal/catalog"
 	"ticketer/internal/core/lock"
 	"ticketer/internal/pricing"
@@ -12,7 +11,6 @@ import (
 )
 
 type BookingService struct {
-	availabilityService availability.Service
 	bookingRepo         BookingRepository
 	movieRepo           catalog.MovieRepository
 	showRepo            catalog.ShowRepository
@@ -22,7 +20,6 @@ type BookingService struct {
 }
 
 func NewBookingService(
-	availabilityService availability.Service,
 	bookingRepo BookingRepository,
 	movieRepo catalog.MovieRepository,
 	showRepo catalog.ShowRepository,
@@ -31,12 +28,11 @@ func NewBookingService(
 	lockService lock.LockService,
 ) *BookingService {
 
-	if availabilityService == nil || bookingRepo == nil || movieRepo == nil || showRepo == nil || showSeatRepo == nil || pricingService == nil || lockService == nil {
+	if bookingRepo == nil || movieRepo == nil || showRepo == nil || showSeatRepo == nil || pricingService == nil || lockService == nil {
 		panic("Constructor parameter is nil for NewBookingService")
 	}
 
 	return &BookingService{
-		availabilityService: availabilityService,
 		bookingRepo:         bookingRepo,
 		movieRepo:           movieRepo,
 		showRepo:            showRepo,
@@ -170,7 +166,7 @@ func (s *BookingService) RevertBooking(bookingID string) error {
 	if err != nil {
 		return err
 	}
-	err = s.bookingRepo.UpdateStatus(bookingID, BookingStatusCancelled)
+	err = s.bookingRepo.UpdateStatus(bookingID, BookingStatusReverted)
 	if err != nil {
 		return err
 	}

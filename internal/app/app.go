@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"os"
 
 	"ticketer/internal/availability"
 	"ticketer/internal/booking"
@@ -23,7 +24,10 @@ import (
 )
 
 func NewDB(lc fx.Lifecycle, logger *zap.Logger) (*pgxpool.Pool, error) {
-	dbURL := "postgres://ticketer:password@localhost:5432/ticketer?sslmode=disable"
+	dbURL := os.Getenv("DATABASE_URL")
+    if dbURL == "" {
+        dbURL = "postgres://ticketer:password@localhost:5432/ticketer?sslmode=disable"
+    }
 	
 	logger.Info("Connecting to database", zap.String("url", dbURL))
 
@@ -89,6 +93,11 @@ var Module = fx.Module("app",
 		),
 		fx.Annotate(
 			catalog.NewHandler,
+			fx.As(new(booking.RouteRegistrar)),
+			fx.ResultTags(`group:"routes"`),
+		),
+		fx.Annotate(
+			availability.NewHandler,
 			fx.As(new(booking.RouteRegistrar)),
 			fx.ResultTags(`group:"routes"`),
 		),
