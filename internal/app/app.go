@@ -8,34 +8,69 @@ import (
 
 	"ticketer/internal/availability"
 	"ticketer/internal/booking"
-	bookingmemory "ticketer/internal/booking/memory"
+	bookingpostgres "ticketer/internal/booking/postgres"
 	"ticketer/internal/catalog"
-	catalogmemory "ticketer/internal/catalog/memory"
+	catalogpostgres "ticketer/internal/catalog/postgres"
 	"ticketer/internal/core/lock"
 	"ticketer/internal/pricing"
 
+	"github.com/golang-migrate/migrate/v4"
+	_ "github.com/golang-migrate/migrate/v4/database/postgres"
+	_ "github.com/golang-migrate/migrate/v4/source/file"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"go.uber.org/fx"
 	"go.uber.org/zap"
 )
 
+func NewDB(lc fx.Lifecycle, logger *zap.Logger) (*pgxpool.Pool, error) {
+	dbURL := "postgres://ticketer:password@localhost:5432/ticketer?sslmode=disable"
+	
+	logger.Info("Connecting to database", zap.String("url", dbURL))
+
+	m, err := migrate.New("file://migrations", dbURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize migrate: %w", err)
+	}
+	if err := m.Up(); err != nil && err != migrate.ErrNoChange {
+		return nil, fmt.Errorf("failed to apply migrations: %w", err)
+	}
+	logger.Info("Database migrations applied successfully")
+
+	ctx := context.Background()
+	pool, err := pgxpool.New(ctx, dbURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to database: %w", err)
+	}
+
+	lc.Append(fx.Hook{
+		OnStop: func(ctx context.Context) error {
+			logger.Info("Closing database connection pool")
+			pool.Close()
+			return nil
+		},
+	})
+
+	return pool, nil
+}
 
 var Module = fx.Module("app",
-	//  Repositories
-	fx.Provide(
-		fx.Annotate(catalogmemory.NewMovieRepository, fx.As(new(catalog.MovieRepository))),
-		fx.Annotate(catalogmemory.NewShowRepository, fx.As(new(catalog.ShowRepository))),
-		fx.Annotate(catalogmemory.NewShowSeatRepository, fx.As(new(catalog.ShowSeatRepository))),
-		fx.Annotate(catalogmemory.NewTheaterRepository, fx.As(new(catalog.TheaterRepository))),
-		fx.Annotate(bookingmemory.NewBookingRepository, fx.As(new(booking.BookingRepository))),
-	),
-
 	// Infrastructure
 	fx.Provide(
-		fx.Annotate(lock.NewInMemoryLockService, fx.As(new(lock.LockService))),
 		zap.NewProduction,
+		NewDB,
+		fx.Annotate(lock.NewInMemoryLockService, fx.As(new(lock.LockService))),
 	),
 
-	//  Domain Services 
+	// Repositories
+	fx.Provide(
+		fx.Annotate(catalogpostgres.NewMovieRepository, fx.As(new(catalog.MovieRepository))),
+		fx.Annotate(catalogpostgres.NewShowRepository, fx.As(new(catalog.ShowRepository))),
+		fx.Annotate(catalogpostgres.NewShowSeatRepository, fx.As(new(catalog.ShowSeatRepository))),
+		fx.Annotate(catalogpostgres.NewTheaterRepository, fx.As(new(catalog.TheaterRepository))),
+		fx.Annotate(bookingpostgres.NewBookingRepository, fx.As(new(booking.BookingRepository))),
+	),
+
+	// Domain Services
 	fx.Provide(
 		fx.Annotate(availability.New, fx.As(new(availability.Service))),
 		fx.Annotate(pricing.New, fx.As(new(pricing.Service))),
@@ -45,7 +80,7 @@ var Module = fx.Module("app",
 		catalog.NewShowService,
 	),
 
-	//  HTTP Handlers 
+	// HTTP Handlers
 	fx.Provide(
 		fx.Annotate(
 			booking.NewHandler,
@@ -59,7 +94,7 @@ var Module = fx.Module("app",
 		),
 	),
 
-	//  HTTP Server 
+	// HTTP Server
 	fx.Provide(NewHTTPServer),
 	fx.Invoke(startServer),
 )
@@ -68,7 +103,6 @@ type ServerParams struct {
 	fx.In
 	Registrars []booking.RouteRegistrar `group:"routes"`
 }
-
 
 func NewHTTPServer(p ServerParams) *http.ServeMux {
 	mux := http.NewServeMux()
@@ -84,7 +118,6 @@ func NewHTTPServer(p ServerParams) *http.ServeMux {
 
 	return mux
 }
-
 
 func startServer(lc fx.Lifecycle, mux *http.ServeMux, logger *zap.Logger) {
 	srv := &http.Server{
