@@ -6,41 +6,36 @@ import (
 )
 
 type LockService interface {
-	TryLock(key string) error
-	Unlock(key string) error
+	TryLock(showSeatID string, userID string) error
+	Unlock(showSeatID string) error
 }
 
 type InMemoryLockService struct {
-    mu sync.Mutex
-   locks map[string]bool
+	mu    sync.Mutex
+	locks map[string]string
 }
 
 func NewInMemoryLockService() *InMemoryLockService {
-    return &InMemoryLockService{
-        locks: make(map[string]bool),
-    }
+	return &InMemoryLockService{
+		locks: make(map[string]string),
+	}
 }
 
-func (s *InMemoryLockService) TryLock(key string) error {
-    s.mu.Lock()
-    defer s.mu.Unlock()
+func (s *InMemoryLockService) TryLock(showSeatID string, userID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
-    if s.locks[key] {
-        return fmt.Errorf("key %s is already locked", key)
-    }
+	if _, exists := s.locks[showSeatID]; exists {
+		return fmt.Errorf("showSeat %s is already locked", showSeatID)
+	}
 
-    s.locks[key] = true
-    return nil
+	s.locks[showSeatID] = userID
+	return nil
 }
 
-func (s *InMemoryLockService) Unlock(key string) error {
-    s.mu.Lock()
-    defer s.mu.Unlock()
-
-    delete(s.locks, key)
-    return nil
+func (s *InMemoryLockService) Unlock(showSeatID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.locks, showSeatID)
+	return nil
 }
-
-
-
-
