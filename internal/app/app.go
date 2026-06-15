@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"os"
 
+	"ticketer/internal/auth"
+	authpostgres "ticketer/internal/auth/postgres"
 	"ticketer/internal/availability"
 	"ticketer/internal/booking"
 	bookingpostgres "ticketer/internal/booking/postgres"
@@ -72,6 +74,7 @@ var Module = fx.Module("app",
 		fx.Annotate(catalogpostgres.NewShowSeatRepository, fx.As(new(catalog.ShowSeatRepository))),
 		fx.Annotate(catalogpostgres.NewTheaterRepository, fx.As(new(catalog.TheaterRepository))),
 		fx.Annotate(bookingpostgres.NewBookingRepository, fx.As(new(booking.BookingRepository))),
+		fx.Annotate(authpostgres.NewUserRepository, fx.As(new(auth.UserRepository))),
 	),
 
 	// Domain Services
@@ -82,6 +85,7 @@ var Module = fx.Module("app",
 		catalog.NewTheaterService,
 		catalog.NewMovieService,
 		catalog.NewShowService,
+		fx.Annotate(auth.NewService, fx.As(new(auth.Service))),
 	),
 
 	// HTTP Handlers
@@ -98,6 +102,11 @@ var Module = fx.Module("app",
 		),
 		fx.Annotate(
 			availability.NewHandler,
+			fx.As(new(booking.RouteRegistrar)),
+			fx.ResultTags(`group:"routes"`),
+		),
+		fx.Annotate(
+			auth.NewHandler,
 			fx.As(new(booking.RouteRegistrar)),
 			fx.ResultTags(`group:"routes"`),
 		),

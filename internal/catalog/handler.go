@@ -3,6 +3,8 @@ package catalog
 import (
 	"encoding/json"
 	"net/http"
+
+	"ticketer/internal/auth"
 )
 
 type Handler struct {
@@ -20,40 +22,45 @@ func NewHandler(ts *TheaterService, ms *MovieService, ss *ShowService) *Handler 
 }
 
 func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
+	// Helper for admin routes
+	adminOnly := func(next http.HandlerFunc) http.Handler {
+		return auth.AuthMiddleware(auth.RoleMiddleware("admin")(next))
+	}
+
 	// Theaters
-	mux.HandleFunc("POST /api/admin/theaters", h.addTheater)
-	mux.HandleFunc("GET /api/admin/theaters", h.listTheatersByAdmin)
+	mux.Handle("POST /api/admin/theaters", adminOnly(h.addTheater))
+	mux.Handle("GET /api/admin/theaters", adminOnly(h.listTheatersByAdmin))
 	mux.HandleFunc("GET /api/theaters/{id}", h.getTheater)
-	mux.HandleFunc("PUT /api/admin/theaters/{id}", h.updateTheater)
-	mux.HandleFunc("DELETE /api/admin/theaters/{id}", h.deleteTheater)
+	mux.Handle("PUT /api/admin/theaters/{id}", adminOnly(h.updateTheater))
+	mux.Handle("DELETE /api/admin/theaters/{id}", adminOnly(h.deleteTheater))
 
 	// Screens
-	mux.HandleFunc("POST /api/admin/theaters/{id}/screens", h.addScreen)
+	mux.Handle("POST /api/admin/theaters/{id}/screens", adminOnly(h.addScreen))
 	mux.HandleFunc("GET /api/theaters/{id}/screens", h.getScreens)
-	mux.HandleFunc("PUT /api/admin/screens/{screen_id}", h.updateScreen)
-	mux.HandleFunc("DELETE /api/admin/theaters/{id}/screens/{screen_id}", h.deleteScreen)
+	mux.Handle("PUT /api/admin/screens/{screen_id}", adminOnly(h.updateScreen))
+	mux.Handle("DELETE /api/admin/theaters/{id}/screens/{screen_id}", adminOnly(h.deleteScreen))
 	mux.HandleFunc("GET /api/screens/{id}", h.getScreen)
 
 	// Seat routes
-	mux.HandleFunc("POST /api/admin/screens/{screen_id}/seats", h.addSeat)
+	mux.Handle("POST /api/admin/screens/{screen_id}/seats", adminOnly(h.addSeat))
 	mux.HandleFunc("GET /api/screens/{screen_id}/seats", h.getSeats)
-	mux.HandleFunc("PUT /api/admin/seats/{seat_id}", h.updateSeat)
-	mux.HandleFunc("DELETE /api/admin/screens/{screen_id}/seats/{seat_id}", h.deleteSeat)
+	mux.Handle("PUT /api/admin/seats/{seat_id}", adminOnly(h.updateSeat))
+	mux.Handle("DELETE /api/admin/screens/{screen_id}/seats/{seat_id}", adminOnly(h.deleteSeat))
 
 	// Movies
-	mux.HandleFunc("POST /api/admin/movies", h.addMovie)
+	mux.Handle("POST /api/admin/movies", adminOnly(h.addMovie))
 	mux.HandleFunc("GET /api/movies", h.listMovies)
 	mux.HandleFunc("GET /api/movies/{id}", h.getMovie)
-	mux.HandleFunc("PUT /api/admin/movies/{id}", h.updateMovie)
-	mux.HandleFunc("DELETE /api/admin/movies/{id}", h.deleteMovie)
+	mux.Handle("PUT /api/admin/movies/{id}", adminOnly(h.updateMovie))
+	mux.Handle("DELETE /api/admin/movies/{id}", adminOnly(h.deleteMovie))
 
 	// Shows
-	mux.HandleFunc("POST /api/admin/shows", h.addShow)
+	mux.Handle("POST /api/admin/shows", adminOnly(h.addShow))
 	mux.HandleFunc("GET /api/shows/{id}", h.getShow)
 	mux.HandleFunc("GET /api/movies/{id}/shows", h.getShowsByMovie)
 	mux.HandleFunc("GET /api/theaters/{id}/shows", h.getShowsByTheater)
-	mux.HandleFunc("PUT /api/admin/shows/{id}", h.updateShow)
-	mux.HandleFunc("DELETE /api/admin/shows/{id}", h.deleteShow)
+	mux.Handle("PUT /api/admin/shows/{id}", adminOnly(h.updateShow))
+	mux.Handle("DELETE /api/admin/shows/{id}", adminOnly(h.deleteShow))
 }
 
 // helper for JSON response

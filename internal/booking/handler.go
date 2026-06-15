@@ -3,6 +3,8 @@ package booking
 import (
 	"encoding/json"
 	"net/http"
+
+	"ticketer/internal/auth"
 )
 
 
@@ -21,11 +23,11 @@ func NewHandler(service Service) *Handler {
 }
 
 func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
-	mux.HandleFunc("GET /api/bookings", h.listUserBookings)
-	mux.HandleFunc("POST /api/bookings", h.initiateBooking)
-	mux.HandleFunc("POST /api/bookings/{id}/confirm", h.confirmBooking)
-	mux.HandleFunc("POST /api/bookings/{id}/cancel", h.cancelBooking)
-	mux.HandleFunc("POST /api/bookings/{id}/revert", h.revertBooking)
+	mux.Handle("GET /api/bookings", auth.AuthMiddleware(http.HandlerFunc(h.listUserBookings)))
+	mux.Handle("POST /api/bookings", auth.AuthMiddleware(http.HandlerFunc(h.initiateBooking)))
+	mux.Handle("POST /api/bookings/{id}/confirm", auth.AuthMiddleware(http.HandlerFunc(h.confirmBooking)))
+	mux.Handle("POST /api/bookings/{id}/cancel", auth.AuthMiddleware(http.HandlerFunc(h.cancelBooking)))
+	mux.Handle("POST /api/bookings/{id}/revert", auth.AuthMiddleware(http.HandlerFunc(h.revertBooking)))
 }
 
 
