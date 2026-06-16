@@ -57,12 +57,8 @@ func AuthMiddleware(next http.Handler) http.Handler {
 			ID: userID,
 		}
 
-		if rolesInterface, ok := claims["roles"].([]interface{}); ok {
-			for _, r := range rolesInterface {
-				if strRole, ok := r.(string); ok {
-					user.Roles = append(user.Roles, strRole)
-				}
-			}
+		if roleStr, ok := claims["role"].(string); ok {
+			user.Role = roleStr
 		}
 
 		ctx := context.WithValue(r.Context(), "user", user)
@@ -79,15 +75,7 @@ func RoleMiddleware(requiredRole string) func(http.Handler) http.Handler {
 				return
 			}
 
-			hasRole := false
-			for _, role := range user.Roles {
-				if role == requiredRole {
-					hasRole = true
-					break
-				}
-			}
-
-			if !hasRole {
+			if user.Role != requiredRole {
 				http.Error(w, "forbidden - insufficient permissions", http.StatusForbidden)
 				return
 			}

@@ -49,7 +49,7 @@ func NewService(repo UserRepository) Service {
 }
 
 func (s *service) GetLoginURL(state string) string {
-	return s.oauthConfig.AuthCodeURL(state)
+	return s.oauthConfig.AuthCodeURL(state, oauth2.SetAuthURLParam("prompt", "select_account"))
 }
 
 func (s *service) HandleCallback(ctx context.Context, code string, requestedRole string) (string, error) {
@@ -81,21 +81,21 @@ func (s *service) HandleCallback(ctx context.Context, code string, requestedRole
 	}
 
 	if user == nil {
-		var roles []string
+		var role string
 		switch requestedRole {
 		case "admin":
-			roles = []string{"admin"}
+			role = "admin"
 		case "both":
-			roles = []string{"user", "admin"}
+			role = "admin" // Both doesn't make sense anymore, default to admin
 		default:
-			roles = []string{"user"} 
+			role = "user" 
 		}
 
 		user = &User{
 			ID:            uuid.New(),
 			Email:         googleUser.Email,
 			Name:          googleUser.Name,
-			Roles:         roles,
+			Role:          role,
 			OAuthProvider: "google",
 			CreatedAt:     time.Now(),
 			UpdatedAt:     time.Now(),
@@ -108,11 +108,11 @@ func (s *service) HandleCallback(ctx context.Context, code string, requestedRole
 		user.Name = googleUser.Name
 		switch requestedRole {
 		case "admin":
-			user.Roles = []string{"admin"}
+			user.Role = "admin"
 		case "both":
-			user.Roles = []string{"user", "admin"}
+			user.Role = "admin"
 		default:
-			user.Roles = []string{"user"}
+			user.Role = "user"
 		}
 		if err := s.repo.Update(ctx, user); err != nil {
 			return "", fmt.Errorf("failed to update user: %w", err)
@@ -121,7 +121,7 @@ func (s *service) HandleCallback(ctx context.Context, code string, requestedRole
 
 	jwtToken := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"sub":   user.ID.String(),
-		"roles": user.Roles,
+		"role":  user.Role,
 		"exp":   time.Now().Add(time.Hour * 24).Unix(), 
 		"iat":   time.Now().Unix(),
 	})

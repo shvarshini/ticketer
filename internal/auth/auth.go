@@ -10,8 +10,8 @@ type User struct {
 	ID            uuid.UUID `json:"id"`
 	Email         string    `json:"email"`
 	Name          string    `json:"name"`
-	Roles         []string  `json:"roles"`
-	OAuthProvider string    `json:"-"`
+	Role          string    `json:"role"`
+	OAuthProvider string    `json:"oauth_provider"`
 	CreatedAt     time.Time `json:"created_at"`
 	UpdatedAt     time.Time `json:"updated_at"`
 }
