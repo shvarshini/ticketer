@@ -14,56 +14,19 @@ import (
 	bookingpostgres "ticketer/internal/booking/postgres"
 	"ticketer/internal/catalog"
 	catalogpostgres "ticketer/internal/catalog/postgres"
+	"ticketer/internal/core/database"
 	"ticketer/internal/core/lock"
 	"ticketer/internal/pricing"
-
-	"github.com/golang-migrate/migrate/v4"
-	_ "github.com/golang-migrate/migrate/v4/database/postgres"
-	_ "github.com/golang-migrate/migrate/v4/source/file"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"go.uber.org/fx"
 	"go.uber.org/zap"
 )
 
-func NewDB(lc fx.Lifecycle, logger *zap.Logger) (*pgxpool.Pool, error) {
-	dbURL := os.Getenv("DATABASE_URL")
-    if dbURL == "" {
-        dbURL = "postgres://ticketer:password@localhost:5432/ticketer?sslmode=disable"
-    }
-	
-	logger.Info("Connecting to database", zap.String("url", dbURL))
-
-	m, err := migrate.New("file://migrations", dbURL)
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialize migrate: %w", err)
-	}
-	if err := m.Up(); err != nil && err != migrate.ErrNoChange {
-		return nil, fmt.Errorf("failed to apply migrations: %w", err)
-	}
-	logger.Info("Database migrations applied successfully")
-
-	ctx := context.Background()
-	pool, err := pgxpool.New(ctx, dbURL)
-	if err != nil {
-		return nil, fmt.Errorf("failed to connect to database: %w", err)
-	}
-
-	lc.Append(fx.Hook{
-		OnStop: func(ctx context.Context) error {
-			logger.Info("Closing database connection pool")
-			pool.Close()
-			return nil
-		},
-	})
-
-	return pool, nil
-}
 
 var Module = fx.Module("app",
 	// Infrastructure
 	fx.Provide(
 		zap.NewProduction,
-		NewDB,
+		database.NewDB,
 		fx.Annotate(lock.NewInMemoryLockService, fx.As(new(lock.LockService))),
 	),
 
