@@ -16,6 +16,7 @@ func NewTheaterRepository(db *pgxpool.Pool) catalog.TheaterRepository {
 	}
 }
 
+
 func (r *TheaterRepository) GetByID(id string) (*catalog.Theater, error) {
 	query := `SELECT id, admin_id, name, location FROM theaters WHERE id = $1`
 	var theater catalog.Theater
@@ -28,50 +29,11 @@ func (r *TheaterRepository) GetByID(id string) (*catalog.Theater, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	screensQuery := `SELECT id, theater_id, name FROM screens WHERE theater_id = $1`
-	rows, err := r.db.Query(context.Background(), screensQuery, id)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var screens []catalog.Screen
-	for rows.Next() {
-		var screen catalog.Screen
-		if err := rows.Scan(&screen.ID, &screen.TheaterID, &screen.Name); err != nil {
-			return nil, err
-		}
-		
-		seatsQuery := `SELECT id, screen_id, row, number, type FROM seats WHERE screen_id = $1`
-		seatRows, err := r.db.Query(context.Background(), seatsQuery, screen.ID)
-		if err != nil {
-			return nil, err
-		}
-		
-		var seats []catalog.Seat
-		for seatRows.Next() {
-			var seat catalog.Seat
-			var seatType string
-			if err := seatRows.Scan(&seat.ID, &seat.ScreenID, &seat.Row, &seat.Number, &seatType); err != nil {
-				seatRows.Close()
-				return nil, err
-			}
-			seat.Type = catalog.SeatType(seatType)
-			seats = append(seats, seat)
-		}
-		seatRows.Close()
-		screen.Seats = seats
-
-		screens = append(screens, screen)
-	}
-	theater.Screens = screens
-
 	return &theater, nil
 }
 
 func (r *TheaterRepository) GetByAdminID(adminID string) ([]catalog.Theater, error) {
-	query := `SELECT id FROM theaters WHERE admin_id = $1`
+	query := `SELECT id, admin_id, name, location FROM theaters WHERE admin_id = $1`
 	rows, err := r.db.Query(context.Background(), query, adminID)
 	if err != nil {
 		return nil, err
@@ -80,16 +42,17 @@ func (r *TheaterRepository) GetByAdminID(adminID string) ([]catalog.Theater, err
 
 	var theaters []catalog.Theater
 	for rows.Next() {
-		var id string
-		if err := rows.Scan(&id); err != nil {
+		var theater catalog.Theater
+		if err := rows.Scan(
+			&theater.ID,
+			&theater.AdminID,
+			&theater.Name,
+			&theater.Location,
+		); err != nil {
 			return nil, err
 		}
 		
-		theater, err := r.GetByID(id)
-		if err != nil {
-			return nil, err
-		}
-		theaters = append(theaters, *theater)
+		theaters = append(theaters, theater)
 	}
 	return theaters, nil
 }
@@ -106,13 +69,26 @@ func (r *TheaterRepository) GetScreen(screenID string) (*catalog.Screen, error) 
 		return nil, err
 	}
 
-	seats, err := r.GetSeats(screenID)
+	return &screen, nil
+}
+
+func (r *TheaterRepository) GetScreens(theaterID string) ([]catalog.Screen, error) {
+	query := `SELECT id, theater_id, name FROM screens WHERE theater_id = $1`
+	rows, err := r.db.Query(context.Background(), query, theaterID)
 	if err != nil {
 		return nil, err
 	}
-	screen.Seats = seats
+	defer rows.Close()
 
-	return &screen, nil
+	var screens []catalog.Screen
+	for rows.Next() {
+		var screen catalog.Screen
+		if err := rows.Scan(&screen.ID, &screen.TheaterID, &screen.Name); err != nil {
+			return nil, err
+		}
+		screens = append(screens, screen)
+	}
+	return screens, nil
 }
 
 func (r *TheaterRepository) GetSeats(screenID string) ([]catalog.Seat, error) {
@@ -137,7 +113,7 @@ func (r *TheaterRepository) GetSeats(screenID string) ([]catalog.Seat, error) {
 }
 
 func (r *TheaterRepository) List() ([]catalog.Theater, error) {
-	query := `SELECT id FROM theaters`
+	query := `SELECT id, admin_id, name, location FROM theaters`
 	rows, err := r.db.Query(context.Background(), query)
 	if err != nil {
 		return nil, err
@@ -146,16 +122,17 @@ func (r *TheaterRepository) List() ([]catalog.Theater, error) {
 
 	var theaters []catalog.Theater
 	for rows.Next() {
-		var id string
-		if err := rows.Scan(&id); err != nil {
+		var theater catalog.Theater
+		if err := rows.Scan(
+			&theater.ID,
+			&theater.AdminID,
+			&theater.Name,
+			&theater.Location,
+		); err != nil {
 			return nil, err
 		}
 		
-		theater, err := r.GetByID(id)
-		if err != nil {
-			return nil, err
-		}
-		theaters = append(theaters, *theater)
+		theaters = append(theaters, theater)
 	}
 	return theaters, nil
 }
@@ -213,7 +190,7 @@ func (r *TheaterRepository) DeleteScreen(theaterID, screenID string) error {
 	return err
 }
 
-func (r *TheaterRepository) AddSeatToScreen(screenID string, seat *catalog.Seat) (*catalog.Screen, error) {
+func (r *TheaterRepository) AddSeatToScreen(screenID string, seat *catalog.Seat) ( error) {
 	query := `INSERT INTO seats (id, screen_id, row, number, type) VALUES ($1, $2, $3, $4, $5)`
 	_, err := r.db.Exec(context.Background(), query,
 		seat.ID,
@@ -222,10 +199,8 @@ func (r *TheaterRepository) AddSeatToScreen(screenID string, seat *catalog.Seat)
 		seat.Number,
 		string(seat.Type),
 	)
-	if err != nil {
-		return nil, err
-	}
-	return r.GetScreen(screenID)
+
+	return err
 }
 
 func (r *TheaterRepository) UpdateSeat(seat *catalog.Seat) error {
