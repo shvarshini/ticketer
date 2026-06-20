@@ -15,19 +15,7 @@ func NewTheaterService(tr TheaterRepository) *TheaterService {
 }
 
 func (s *TheaterService) AddTheater(theater *Theater) error {
-	existing, err := s.theaterRepo.GetByAdminID(theater.AdminID)
-	if err == nil {
-		for _, th := range existing {
-			if th.Name == theater.Name && th.Location == theater.Location {
-				*theater = th
-				return nil
-			}
-		}
-	}
 	theater.ID = uuid.New().String()
-	if theater.Screens == nil {
-		theater.Screens = make([]Screen, 0)
-	}
 	return s.theaterRepo.Save(theater)
 }
 
@@ -40,24 +28,10 @@ func (s *TheaterService) ListTheatersByAdmin(adminID string) ([]Theater, error) 
 }
 
 func (s *TheaterService) UpdateTheater(theater *Theater) error {
-	existing, err := s.theaterRepo.GetByID(theater.ID)
+	_, err := s.theaterRepo.GetByID(theater.ID)
 	if err != nil {
 		return err
 	}
-
-	if existing.AdminID != theater.AdminID {
-		return errors.New("unauthorized: you do not have permission to modify this theater")
-	}
-
-	allTheaters, err := s.theaterRepo.List()
-		for _, t := range allTheaters {
-			if t.ID != theater.ID && t.Name == theater.Name && t.Location == theater.Location {
-				return errors.New("conflict: a theater with this name and location already exists")
-			}
-		}
-
-	theater.Screens = existing.Screens
-
 	return s.theaterRepo.Update(theater)
 }
 
@@ -66,22 +40,8 @@ func (s *TheaterService) DeleteTheater(id string) error {
 }
 
 func (s *TheaterService) AddScreenToTheater(theaterID string, screen *Screen) error {
-	// Idempotency check: if the theater already has a screen with this name, return it
-	th, err := s.theaterRepo.GetByID(theaterID)
-	if err == nil {
-		for _, existingScreen := range th.Screens {
-			if existingScreen.Name == screen.Name {
-				*screen = existingScreen
-				return nil
-			}
-		}
-	}
-
 	screen.ID = uuid.New().String()
 	screen.TheaterID = theaterID
-	if screen.Seats == nil {
-		screen.Seats = make([]Seat, 0)
-	}
 	return s.theaterRepo.AddScreenToTheater(theaterID, screen)
 }
 
@@ -94,28 +54,14 @@ func (s *TheaterService) DeleteScreen(theaterID, screenID string) error {
 }
 
 func (s *TheaterService) GetScreens(theaterID string) ([]Screen, error) {
-	th, err := s.theaterRepo.GetByID(theaterID)
-	if err != nil {
-		return nil, err
-	}
-	return th.Screens, nil
+	return s.theaterRepo.GetScreens(theaterID)
 }
 
 func (s *TheaterService) GetScreen(screenID string) (*Screen, error) {
 	return s.theaterRepo.GetScreen(screenID)
 }
 
-func (s *TheaterService) AddSeatToScreen(screenID string, seat *Seat) (*Screen, error) {
-	screenObj, err := s.theaterRepo.GetScreen(screenID)
-	if err == nil {
-		for _, existingSeat := range screenObj.Seats {
-			if existingSeat.Row == seat.Row && existingSeat.Number == seat.Number {
-				*seat = existingSeat
-				return screenObj, nil
-			}
-		}
-	}
-
+func (s *TheaterService) AddSeatToScreen(screenID string, seat *Seat) error {
 	seat.ID = uuid.New().String()
 	seat.ScreenID = screenID
 	return s.theaterRepo.AddSeatToScreen(screenID, seat)
@@ -142,14 +88,6 @@ func NewMovieService(mr MovieRepository) *MovieService {
 }
 
 func (s *MovieService) AddMovie(movie *Movie) error {
-	existingMovies, _:= s.movieRepo.List()
-		for _, m := range existingMovies {
-			if m.Title == movie.Title {
-				*movie = m
-				return nil
-			}
-		}
-
 	movie.ID = uuid.New().String()
 	return s.movieRepo.Save(movie)
 }
@@ -166,16 +104,6 @@ func (s *MovieService) UpdateMovie(movie *Movie) error {
 	if _, err := s.movieRepo.GetByID(movie.ID); err != nil {
 		return errors.New("movie doesn't exist")
 	}
-
-	existingMovies, err := s.movieRepo.List()
-	if err == nil {
-		for _, m := range existingMovies {
-			if m.ID != movie.ID && m.Title == movie.Title {
-				return errors.New("conflict: another movie with this title already exists")
-			}
-		}
-	}
-
 	return s.movieRepo.Update(movie)
 }
 
@@ -184,9 +112,9 @@ func (s *MovieService) DeleteMovie(id string) error {
 }
 
 type ShowService struct {
-	showRepo      ShowRepository
-	showSeatRepo  ShowSeatRepository
-	theaterRepo   TheaterRepository
+	showRepo     ShowRepository
+	showSeatRepo ShowSeatRepository
+	theaterRepo  TheaterRepository
 }
 
 func NewShowService(sr ShowRepository, ssr ShowSeatRepository, tr TheaterRepository) *ShowService {
@@ -198,28 +126,23 @@ func NewShowService(sr ShowRepository, ssr ShowSeatRepository, tr TheaterReposit
 }
 
 func (s *ShowService) AddShow(show *Show) error {
-	existingShows, err := s.showRepo.GetByScreen(show.ScreenID)
+	existingShow, err := s.showRepo.GetByScreenAndTime(show.ScreenID, show.StartTime)
 	if err == nil {
-		for _, existingShow := range existingShows {
-			if existingShow.MovieID == show.MovieID && existingShow.StartTime.Equal(show.StartTime) {
-				*show = existingShow
-				return nil
-			}
-		}
+		*show = *existingShow
+		return nil	
 	}
 
 	show.ID = uuid.New().String()
-	screen, err := s.theaterRepo.GetScreen(show.ScreenID)
+	seats, err :=s.theaterRepo.GetSeats(show.ScreenID)
 	if err != nil {
-		return errors.New("invalid screen ID for show: " + err.Error())
+		return err
 	}
-
 	err = s.showRepo.Save(show)
 	if err != nil {
 		return err
 	}
 
-	for _, seat := range screen.Seats {
+	for _, seat := range seats {
 		showSeat := &ShowSeat{
 			ID:     uuid.New().String(),
 			ShowID: show.ID,
@@ -230,7 +153,6 @@ func (s *ShowService) AddShow(show *Show) error {
 			return err
 		}
 	}
-
 	return nil
 }
 
@@ -243,35 +165,13 @@ func (s *ShowService) GetShowsByMovie(movieID string) ([]Show, error) {
 }
 
 func (s *ShowService) GetShowsByTheater(theaterID string) ([]Show, error) {
-	th, err := s.theaterRepo.GetByID(theaterID)
-	if err != nil {
-		return nil, err
-	}
-
-	var allShows []Show
-	for _, screen := range th.Screens {
-		shows, err := s.showRepo.GetByScreen(screen.ID)
-		if err == nil {
-			allShows = append(allShows, shows...)
-		}
-	}
-	return allShows, nil
+	return s.showRepo.GetByTheater(theaterID)
 }
 
 func (s *ShowService) UpdateShow(show *Show) error {
 	if _, err := s.showRepo.GetByID(show.ID); err != nil {
 		return errors.New("show doesn't exist")
 	}
-
-	existingShows, err := s.showRepo.GetByScreen(show.ScreenID)
-	if err == nil {
-		for _, existingShow := range existingShows {
-			if existingShow.ID != show.ID && existingShow.StartTime.Equal(show.StartTime) {
-				return errors.New("conflict: another show is already scheduled on this screen at this start time")
-			}
-		}
-	}
-
 	return s.showRepo.Update(show)
 }
 

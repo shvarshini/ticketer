@@ -5,14 +5,12 @@ type Theater struct {
 	AdminID  string   `json:"admin_id"`
 	Name     string   `json:"name"`
 	Location string   `json:"location"`
-	Screens  []Screen `json:"screens"`
 }
 
 type Screen struct {
 	ID        string `json:"id"`
 	TheaterID string `json:"theater_id"`
 	Name      string `json:"name"`
-	Seats     []Seat `json:"seats"`
 }
 
 type SeatType string
@@ -35,6 +33,7 @@ type TheaterRepository interface {
 	GetByID(id string) (*Theater, error)
 	GetByAdminID(adminID string) ([]Theater, error)
 	GetScreen(screenID string) (*Screen, error)
+	GetScreens(theaterID string) ([]Screen, error)
 	GetSeats(screenID string) ([]Seat, error)
 	List() ([]Theater, error)
 	Save(theater *Theater) error
@@ -43,7 +42,7 @@ type TheaterRepository interface {
 	AddScreenToTheater(theaterID string, screen *Screen) error
 	UpdateScreen(screen *Screen) error
 	DeleteScreen(theaterID, screenID string) error
-	AddSeatToScreen(screenID string, seat *Seat) (*Screen, error)
+	AddSeatToScreen(screenID string, seat *Seat) error
 	UpdateSeat(seat *Seat) error
 	DeleteSeat(screenID, seatID string) error
 }

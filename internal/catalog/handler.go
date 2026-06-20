@@ -217,7 +217,7 @@ func (h *Handler) addSeat(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	if _, err := h.theaterService.AddSeatToScreen(screenID, &req); err != nil {
+	if err := h.theaterService.AddSeatToScreen(screenID, &req); err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}

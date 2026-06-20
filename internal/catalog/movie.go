@@ -49,6 +49,8 @@ type ShowRepository interface {
 	GetByID(id string) (*Show, error)
 	GetByMovie(movieID string) ([]Show, error)
 	GetByScreen(screenID string) ([]Show, error)
+	GetByScreenAndTime(screenID string, startTime time.Time) (*Show, error)
+	GetByTheater(theaterID string) ([]Show, error)
 	Save(show *Show) error
 	Update(show *Show) error
 	Delete(id string) error

@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"time"
 	"ticketer/internal/catalog"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -61,6 +62,51 @@ func (r *ShowRepository) GetByMovie(movieID string) ([]catalog.Show, error) {
 func (r *ShowRepository) GetByScreen(screenID string) ([]catalog.Show, error) {
 	query := `SELECT id, movie_id, screen_id, start_time, end_time FROM shows WHERE screen_id = $1`
 	rows, err := r.db.Query(context.Background(), query, screenID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var shows []catalog.Show
+	for rows.Next() {
+		var show catalog.Show
+		if err := rows.Scan(
+			&show.ID,
+			&show.MovieID,
+			&show.ScreenID,
+			&show.StartTime,
+			&show.EndTime,
+		); err != nil {
+			return nil, err
+		}
+		shows = append(shows, show)
+	}
+	return shows, nil
+}
+
+func (r *ShowRepository) GetByScreenAndTime(screenID string, startTime time.Time) (*catalog.Show, error) {
+	query := `SELECT id, movie_id, screen_id, start_time, end_time FROM shows WHERE screen_id = $1 AND start_time = $2`
+	var show catalog.Show
+	err := r.db.QueryRow(context.Background(), query, screenID, startTime).Scan(
+		&show.ID,
+		&show.MovieID,
+		&show.ScreenID,
+		&show.StartTime,
+		&show.EndTime,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return &show, nil
+}
+
+func (r *ShowRepository) GetByTheater(theaterID string) ([]catalog.Show, error) {
+	query := `
+		SELECT sh.id, sh.movie_id, sh.screen_id, sh.start_time, sh.end_time 
+		FROM shows sh 
+		JOIN screens sc ON sh.screen_id = sc.id 
+		WHERE sc.theater_id = $1`
+	rows, err := r.db.Query(context.Background(), query, theaterID)
 	if err != nil {
 		return nil, err
 	}
